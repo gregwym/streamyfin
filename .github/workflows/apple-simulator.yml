@@ -1,0 +1,63 @@
+name: Streamyfin Apple simulator verification
+
+on:
+  push:
+    branches: [qa/pr-2536-apple]
+
+permissions:
+  contents: read
+
+jobs:
+  simulator:
+    name: ${{ matrix.name }}
+    runs-on: macos-26
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ios-before
+            source: streamyfin/streamyfin
+            revision: 68af07d44394510b32172a65b07dd1d57a6b7295
+            tv: '0'
+          - name: ios-after
+            source: gregwym/streamyfin
+            revision: 93d66db1359af63b1a8c026668368388cada2fbc
+            tv: '0'
+          - name: tvos-after
+            source: gregwym/streamyfin
+            revision: 93d66db1359af63b1a8c026668368388cada2fbc
+            tv: '1'
+    env:
+      QA_VARIANT: ${{ matrix.name }}
+      QA_REVISION: ${{ matrix.revision }}
+      EXPO_TV: ${{ matrix.tv }}
+      EXPO_NO_TELEMETRY: '1'
+      SENTRY_DISABLE_AUTO_UPLOAD: 'true'
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - name: Check out test harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check out the exact app revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ matrix.source }}
+          ref: ${{ matrix.revision }}
+          path: app-src
+          persist-credentials: false
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.4'
+      - name: Build and exercise the native simulator app
+        run: bash qa/run.sh
+      - name: Save screenshots and diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ runner.temp }}/streamyfin-qa-evidence/
+          if-no-files-found: warn
+          retention-days: 7
