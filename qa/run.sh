@@ -35,7 +35,16 @@ trap cleanup EXIT
 bun install --frozen-lockfile > "$evidence/bun.log" 2>&1 || { tail -100 "$evidence/bun.log"; exit 1; }
 bun run ios:install-metal-toolchain > "$evidence/metal.log" 2>&1 || { tail -50 "$evidence/metal.log"; exit 1; }
 bunx expo prebuild --platform ios --no-install > "$evidence/prebuild.log" 2>&1 || { tail -100 "$evidence/prebuild.log"; exit 1; }
-(cd ios && pod install) > "$evidence/pods.log" 2>&1 || { tail -120 "$evidence/pods.log"; exit 1; }
+for attempt in 1 2 3; do
+  if (cd ios && pod install) >> "$evidence/pods.log" 2>&1; then
+    break
+  fi
+  tail -30 "$evidence/pods.log"
+  if [[ "$attempt" == 3 ]]; then
+    exit 1
+  fi
+  sleep 12
+done
 
 ruby "$harness/test-target.rb" "$harness/MixedLibraryTests.swift" "$QA_VARIANT"
 workspace=$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)
@@ -43,9 +52,6 @@ test -n "$workspace"
 
 xcrun simctl boot "$device_id"
 xcrun simctl bootstatus "$device_id" -b
-if [[ "$EXPO_TV" == 0 ]]; then
-  xcrun simctl status_bar "$device_id" override --time 9:41 --dataNetwork wifi --wifiMode active --wifiBars 3 --cellularMode active --cellularBars 4 --batteryState unplugged --batteryLevel 100
-fi
 python3 "$harness/fixture.py" "$work_dir" "$evidence"
 
 status=0
