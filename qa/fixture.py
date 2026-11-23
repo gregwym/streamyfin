@@ -31,7 +31,7 @@ def until(operation, description, attempts=60):
             result = operation()
             if result:
                 return result
-        except OSError:
+        except (OSError, ValueError):
             if attempt == attempts - 1:
                 raise
         time.sleep(2)
@@ -83,7 +83,16 @@ with (evidence / "jellyfin.log").open("w") as log:
     ], stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
 (work / "server.pid").write_text(str(process.pid))
 
-info = until(lambda: request("/System/Info/Public"), "Jellyfin")
+def ready_info():
+    # The setup listener answers before the media server finishes its database
+    # migrations. Only the real public info endpoint returns Version.
+    response = request("/System/Info/Public")
+    if isinstance(response, dict) and response.get("Version"):
+        return response
+    return None
+
+
+info = until(ready_info, "Jellyfin public server information")
 assert info["Version"] == "12.4.0", info["Version"]
 request("/Startup/Configuration", {
     "ServerName": "Fixture Jellyfin", "UICulture": "en-US",
