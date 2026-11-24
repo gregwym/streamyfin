@@ -87,7 +87,11 @@ final class MixedLibraryTests: XCTestCase {
         try require(app.navigationBars["Mixed Fixture"].waitForExistence(timeout: 15), app.debugDescription)
         #else
         try press(app, "Library", timeout: 25)
-        try press(app, "Mixed Fixture", containing: true, timeout: 25)
+        let card = app.otherElements.matching(
+            NSPredicate(format: "label CONTAINS[c] %@", ", Mixed Fixture, ")
+        ).firstMatch
+        try require(card.waitForExistence(timeout: 25), app.debugDescription)
+        try activate(card, in: app)
         #endif
     }
 
