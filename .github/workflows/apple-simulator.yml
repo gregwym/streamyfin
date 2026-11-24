@@ -16,14 +16,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: ios-before
-            source: streamyfin/streamyfin
-            revision: 68af07d44394510b32172a65b07dd1d57a6b7295
-            tv: '0'
-          - name: ios-after
-            source: gregwym/streamyfin
-            revision: 93d66db1359af63b1a8c026668368388cada2fbc
-            tv: '0'
           - name: tvos-after
             source: gregwym/streamyfin
             revision: 93d66db1359af63b1a8c026668368388cada2fbc

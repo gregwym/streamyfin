@@ -53,13 +53,18 @@ runner_info=$(find "$(dirname "$test_run")" -path '*/MixedLibraryUITests-Runner.
 runner_bundle=$(plutil -extract CFBundleIdentifier raw "$runner_info")
 library_id=$(cat "$work_dir/library-id.txt")
 [[ "$library_id" =~ ^[a-fA-F0-9]{32}$ ]]
+library_url="streamyfin:///$library_id"
+if [[ "$EXPO_TV" == 1 ]]; then
+  # The app uses this route parameter for its TV Home "See All" link.
+  library_url+="?fromSeeAll=true"
+fi
 relay_library_link() {
   local data_path
   while true; do
     if data_path=$(xcrun simctl get_app_container "$device_id" "$runner_bundle" data 2>/dev/null) &&
       [[ -f "$data_path/Library/Caches/streamyfin-qa-open-library" ]]; then
       echo "Opening the fixture library in the running simulator app."
-      xcrun simctl openurl "$device_id" "streamyfin:///$library_id"
+      xcrun simctl openurl "$device_id" "$library_url"
       return
     fi
     sleep 1
