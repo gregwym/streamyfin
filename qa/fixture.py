@@ -15,12 +15,12 @@ auth = 'MediaBrowser Client="QA fixture", Device="Runner", DeviceId="streamyfin-
 token = None
 
 
-def request(path, body=None, method="GET"):
+def request(path, body=None, method="GET", timeout=30):
     headers = {"Authorization": auth + (f', Token="{token}"' if token else "")}
     if body is not None:
         headers["Content-Type"] = "application/json"
     raw = json.dumps(body).encode() if body is not None else None
-    with urlopen(Request(base + path, raw, headers, method=method), timeout=8) as response:
+    with urlopen(Request(base + path, raw, headers, method=method), timeout=timeout) as response:
         data = response.read()
         return json.loads(data) if data else None
 
@@ -109,27 +109,27 @@ user = login["User"]["Id"]
 library_name = "Mixed Fixture"
 providers = ["TheMovieDb", "TheMovieDbBoxSets", "OMDb", "TheTVDB", "Fanart"]
 request("/Library/VirtualFolders?" + urlencode({
-    "name": library_name, "paths": str(media), "refreshLibrary": "true"
+    "name": library_name, "paths": str(media), "refreshLibrary": "false"
 }), {"LibraryOptions": {
     "EnableRealtimeMonitor": False,
     "MetadataOptions": [
         {"ItemType": kind, "DisabledMetadataFetchers": providers, "DisabledImageFetchers": providers}
         for kind in ("Movie", "Series", "Season", "Episode")
     ],
-}}, "POST")
+}}, "POST", timeout=120)
 library = until(lambda: next((item["Id"] for item in request(
     "/UserViews?" + urlencode({"userId": user})
 )["Items"] if item["Name"] == library_name), None), "the mixed library collection")
 
 items_path = "/Items?" + urlencode({"parentId": library, "userId": user, "recursive": "true"})
 required = {"Movie", "Series", "Season", "Episode"}
-for i in range(60):
+request("/Library/Refresh", method="POST", timeout=120)
+
+
+def scanned_items():
     types = {item["Type"] for item in request(items_path)["Items"]}
-    if required <= types:
-        break
-    if i == 4:
-        request("/Library/Refresh", method="POST")
-    time.sleep(2)
-else:
-    raise RuntimeError(f"Fixture contains {types}, expected {required}")
-print("Jellyfin indexed the movie, series, season and episode.")
+    return types if required <= types else None
+
+
+until(scanned_items, "the indexed movie, series, season and episode", attempts=90)
+print("Jellyfin indexed the movie, series, season and episode.", flush=True)

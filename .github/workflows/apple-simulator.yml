@@ -11,7 +11,7 @@ jobs:
   simulator:
     name: ${{ matrix.name }}
     runs-on: macos-26
-    timeout-minutes: 45
+    timeout-minutes: 50
     strategy:
       fail-fast: false
       matrix:
@@ -51,7 +51,23 @@ jobs:
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: '1.4.4'
-      - name: Build and exercise the native simulator app
+      - name: Restore simulator build
+        id: simulator-build
+        uses: actions/cache/restore@55cc8345863c7ac64c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ runner.temp }}/streamyfin-qa/build/Build/Products
+          key: apple-simulator-26.6-${{ matrix.name }}-${{ matrix.revision }}-${{ hashFiles('qa/build.sh', 'qa/test-target.rb', 'qa/MixedLibraryTests.swift') }}
+      - name: Build the native simulator app and UI tests
+        if: steps.simulator-build.outputs.cache-hit != 'true'
+        run: bash qa/build.sh
+      - name: Save simulator build for UI retries
+        if: steps.simulator-build.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7ac64c66a329aec7e433d2d1c52a9
+        continue-on-error: true
+        with:
+          path: ${{ runner.temp }}/streamyfin-qa/build/Build/Products
+          key: ${{ steps.simulator-build.outputs.cache-primary-key }}
+      - name: Exercise the simulator app against Jellyfin
         run: bash qa/run.sh
       - name: Save screenshots and diagnostics
         if: always()
