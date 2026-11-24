@@ -41,8 +41,7 @@ final class MixedLibraryTests: XCTestCase {
         if done.waitForExistence(timeout: 10) { try activate(done, in: app) }
         #endif
 
-        try press(app, "Library", timeout: 25)
-        try press(app, "Mixed Fixture", containing: true, timeout: 25)
+        try openMixedLibrary(app)
         try require(element(app, "Fixture Movie", containing: true).waitForExistence(timeout: 25), app.debugDescription)
         try require(element(app, "Fixture Series", containing: true).exists, app.debugDescription)
         let fixtureEpisode = NSPredicate(
@@ -69,6 +68,27 @@ final class MixedLibraryTests: XCTestCase {
             }
             attachScreen(QAConfiguration.variant + "-series-episode")
         }
+    }
+
+    @MainActor
+    private func openMixedLibrary(_ app: XCUIApplication) throws {
+        #if os(iOS)
+        let libraryTab = app.tabBars.buttons["Library"].firstMatch
+        try require(libraryTab.waitForExistence(timeout: 25), app.debugDescription)
+        // The native tab bar can report an invalid XCUI hit point while its visible frame is correct.
+        libraryTab.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        let libraryList = app.navigationBars["Library"]
+        if libraryList.waitForExistence(timeout: 6) {
+            try press(app, "Mixed Fixture", containing: true, timeout: 25)
+        } else {
+            // The fixture has one library, and its homepage link opens the same Items screen.
+            try press(app, "See all", timeout: 15)
+        }
+        try require(app.navigationBars["Mixed Fixture"].waitForExistence(timeout: 15), app.debugDescription)
+        #else
+        try press(app, "Library", timeout: 25)
+        try press(app, "Mixed Fixture", containing: true, timeout: 25)
+        #endif
     }
 
     private func require(_ condition: Bool, _ diagnostic: @autoclosure () -> String) throws {
@@ -162,7 +182,13 @@ final class MixedLibraryTests: XCTestCase {
         }
         throw failure("Could not focus \(control.label). " + app.debugDescription)
         #else
-        control.tap()
+        if control.isHittable {
+            control.tap()
+        } else {
+            try require(!control.frame.isEmpty && app.frame.intersects(control.frame),
+                        "Could not tap \(control.label). " + app.debugDescription)
+            control.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        }
         #endif
     }
 
