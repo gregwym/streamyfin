@@ -189,16 +189,21 @@ final class MixedLibraryTests: XCTestCase {
         var previousFrame = CGRect.null
         for step in 0..<14 {
             let focused = app.descendants(matching: .any).matching(NSPredicate(format: "hasFocus == true")).firstMatch
-            if control.hasFocus || (focused.exists && focused.frame.contains(control.frame)) {
+            let frame = focused.exists ? focused.frame : .null
+            let target = control.frame
+            // A TV poster is focusable, while its title sits below the focus frame.
+            let posterTitleIsAligned = control.elementType == .staticText && !frame.isNull
+                && target.midX >= frame.minX && target.midX <= frame.maxX
+                && (0...40).contains(target.minY - frame.maxY)
+            if control.hasFocus || frame.contains(target) || posterTitleIsAligned {
                 remote.press(.select)
                 return
             }
-            let frame = focused.exists ? focused.frame : .null
             if frame.isNull {
                 remote.press(.down)
             } else {
-                let dx = control.frame.midX - frame.midX
-                let dy = control.frame.midY - frame.midY
+                let dx = target.midX - frame.midX
+                let dy = target.midY - frame.midY
                 let moved = frame != previousFrame
                 let horizontal = moved ? abs(dx) > abs(dy) : (step % 2 == 0)
                 remote.press(horizontal ? (dx < 0 ? .left : .right) : (dy < 0 ? .up : .down))

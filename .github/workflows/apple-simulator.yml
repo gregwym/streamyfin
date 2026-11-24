@@ -20,11 +20,6 @@ jobs:
             source: gregwym/streamyfin
             revision: 93d66db1359af63b1a8c026668368388cada2fbc
             tv: '1'
-            runtime: '26.4'
-          - name: tvos-after
-            source: gregwym/streamyfin
-            revision: 93d66db1359af63b1a8c026668368388cada2fbc
-            tv: '1'
             runtime: '26.2'
     env:
       QA_VARIANT: ${{ matrix.name }}
