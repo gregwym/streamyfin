@@ -80,15 +80,24 @@ final class MixedLibraryTests: XCTestCase {
         try require(app.tabBars.buttons["Library"].firstMatch.waitForExistence(timeout: 25),
                     app.debugDescription)
         #if os(tvOS)
-        try press(app, "Library")
+        let title = element(app, "Mixed Fixture")
+        let series = element(app, "Fixture Series", containing: true)
         let card = app.otherElements.matching(
             NSPredicate(format: "label CONTAINS[c] %@", ", Mixed Fixture, ")
         ).firstMatch
-        try require(card.waitForExistence(timeout: 25), app.debugDescription)
-        XCUIRemote.shared.press(.down)
-        try activate(card, in: app)
-        if element(app, "Fixture Movie", containing: true).waitForExistence(timeout: 7) {
-            return
+        for _ in 0..<3 {
+            try press(app, "Library")
+            if card.waitForExistence(timeout: 8) {
+                XCUIRemote.shared.press(.down)
+                try activate(card, in: app)
+            }
+            if title.waitForExistence(timeout: 5) {
+                // Move focus off the native tab bar before its default selection can pop the page.
+                XCUIRemote.shared.press(.down)
+                if series.waitForExistence(timeout: 7), title.exists {
+                    return
+                }
+            }
         }
         print("Apple TV library navigation fell back to the app's deep link.")
         #endif
@@ -98,7 +107,6 @@ final class MixedLibraryTests: XCTestCase {
             throw failure("Missing the Jellyfin fixture library ID.")
         }
         #if os(tvOS)
-        let title = element(app, "Mixed Fixture")
         let routes = ["\(libraryID)?fromSeeAll=true",
                       "(auth)/(tabs)/(libraries)/\(libraryID)?fromSeeAll=true"]
         #else
@@ -109,7 +117,13 @@ final class MixedLibraryTests: XCTestCase {
             if let url = URL(string: "streamyfin:///\(route)") {
                 app.open(url)
                 if title.waitForExistence(timeout: 18) {
+                    #if os(tvOS)
+                    if series.waitForExistence(timeout: 8), title.exists {
+                        return
+                    }
+                    #else
                     return
+                    #endif
                 }
             }
         }
