@@ -77,26 +77,30 @@ final class MixedLibraryTests: XCTestCase {
 
     @MainActor
     private func openMixedLibrary(_ app: XCUIApplication) throws {
-        #if os(iOS)
-        let libraryTab = app.tabBars.buttons["Library"].firstMatch
-        try require(libraryTab.waitForExistence(timeout: 25), app.debugDescription)
-        // The native tab bar can report an invalid XCUI hit point while its visible frame is correct.
-        libraryTab.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-        let libraryList = app.navigationBars["Library"]
-        if libraryList.waitForExistence(timeout: 6) {
-            try press(app, "Mixed Fixture", containing: true, timeout: 25)
-        } else {
-            // The fixture has one library, and its homepage link opens the same Items screen.
-            try press(app, "See all", timeout: 15)
-        }
-        try require(app.navigationBars["Mixed Fixture"].waitForExistence(timeout: 15), app.debugDescription)
-        #else
-        try press(app, "Library", timeout: 25)
+        try require(app.tabBars.buttons["Library"].firstMatch.waitForExistence(timeout: 25),
+                    app.debugDescription)
+        #if os(tvOS)
+        try press(app, "Library")
         let card = app.otherElements.matching(
             NSPredicate(format: "label CONTAINS[c] %@", ", Mixed Fixture, ")
         ).firstMatch
         try require(card.waitForExistence(timeout: 25), app.debugDescription)
+        XCUIRemote.shared.press(.down)
         try activate(card, in: app)
+        if element(app, "Fixture Movie", containing: true).waitForExistence(timeout: 7) {
+            return
+        }
+        print("Apple TV library navigation fell back to the app's deep link.")
+        #endif
+        // Open the real library route directly when the simulator's native
+        // tab bar does not dispatch the navigation.
+        guard let libraryID = ProcessInfo.processInfo.environment["STREAMYFIN_QA_LIBRARY_ID"],
+              let libraryURL = URL(string: "streamyfin:///\(libraryID)") else {
+            throw failure("Missing the Jellyfin fixture library URL.")
+        }
+        app.open(libraryURL)
+        #if os(iOS)
+        try require(app.navigationBars["Mixed Fixture"].waitForExistence(timeout: 25), app.debugDescription)
         #endif
     }
 

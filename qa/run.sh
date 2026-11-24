@@ -37,6 +37,24 @@ trap cleanup EXIT
 
 echo "Starting the Jellyfin fixture"
 python3 "$harness/fixture.py" "$work_dir" "$evidence" 2>&1 | tee "$evidence/fixture.log"
+python3 - "$test_run" "$work_dir/library-id.txt" <<'PYENV'
+from pathlib import Path
+import plistlib
+import re
+import sys
+
+test_run, library_id_file = map(Path, sys.argv[1:])
+library_id = library_id_file.read_text().strip()
+if not re.fullmatch(r"[a-fA-F0-9]{32}", library_id):
+    raise ValueError(f"Unexpected Jellyfin fixture library ID: {library_id!r}")
+with test_run.open("rb") as file:
+    spec = plistlib.load(file)
+for configuration in spec["TestConfigurations"]:
+    for target in configuration["TestTargets"]:
+        target.setdefault("EnvironmentVariables", {})["STREAMYFIN_QA_LIBRARY_ID"] = library_id
+with test_run.open("wb") as file:
+    plistlib.dump(spec, file)
+PYENV
 echo "Booting $runtime_family simulator $device_id"
 xcrun simctl boot "$device_id"
 python3 - "$device_id" <<'PYBOOT' 2>&1 | tee "$evidence/boot.log"

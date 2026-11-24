@@ -132,4 +132,5 @@ def scanned_items():
 
 
 until(scanned_items, "the indexed movie, series, season and episode", attempts=90)
+(work / "library-id.txt").write_text(library)
 print("Jellyfin indexed the movie, series, season and episode.", flush=True)
