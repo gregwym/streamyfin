@@ -53,7 +53,7 @@ jobs:
           bun-version: '1.4.4'
       - name: Restore simulator build
         id: simulator-build
-        uses: actions/cache/restore@55cc8345863c7ac64c66a329aec7e433d2d1c52a9
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/streamyfin-qa/build/Build/Products
           key: apple-simulator-26.6-${{ matrix.name }}-${{ matrix.revision }}-${{ hashFiles('qa/build.sh', 'qa/test-target.rb', 'qa/MixedLibraryTests.swift') }}
@@ -62,7 +62,7 @@ jobs:
         run: bash qa/build.sh
       - name: Save simulator build for UI retries
         if: steps.simulator-build.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7ac64c66a329aec7e433d2d1c52a9
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         continue-on-error: true
         with:
           path: ${{ runner.temp }}/streamyfin-qa/build/Build/Products
