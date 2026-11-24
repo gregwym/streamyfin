@@ -49,9 +49,14 @@ if not re.fullmatch(r"[a-fA-F0-9]{32}", library_id):
     raise ValueError(f"Unexpected Jellyfin fixture library ID: {library_id!r}")
 with test_run.open("rb") as file:
     spec = plistlib.load(file)
-for configuration in spec["TestConfigurations"]:
-    for target in configuration["TestTargets"]:
-        target.setdefault("EnvironmentVariables", {})["STREAMYFIN_QA_LIBRARY_ID"] = library_id
+if "TestConfigurations" in spec:
+    targets = [target for configuration in spec["TestConfigurations"] for target in configuration["TestTargets"]]
+else:
+    targets = [target for target in spec.values() if isinstance(target, dict) and "TestBundlePath" in target]
+if not targets:
+    raise ValueError("The xctestrun file does not contain a test target.")
+for target in targets:
+    target.setdefault("EnvironmentVariables", {})["STREAMYFIN_QA_LIBRARY_ID"] = library_id
 with test_run.open("wb") as file:
     plistlib.dump(spec, file)
 PYENV
