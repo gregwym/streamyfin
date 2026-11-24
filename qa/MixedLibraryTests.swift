@@ -10,20 +10,30 @@ final class MixedLibraryTests: XCTestCase {
 
         #if os(tvOS)
         try press(app, "Add server", timeout: 25)
+        let server = element(app, "http(s)://your-server.com")
+        #else
+        let server = app.textFields["login-server-url"]
         #endif
-        let server = app.textFields.firstMatch
         try require(server.waitForExistence(timeout: 25), app.debugDescription)
         try fill(server, in: app, "http://127.0.0.1:18096")
         try press(app, "Connect")
         let allow = app.alerts.buttons["Allow"]
         if allow.exists { try activate(allow, in: app) }
 
+        #if os(tvOS)
+        let username = element(app, "Username")
+        #else
         let username = app.textFields.matching(NSPredicate(format: "placeholderValue == %@", "Username")).firstMatch
-        try require(username.waitForExistence(timeout: 20), app.debugDescription)
+        #endif
+        try require(username.waitForExistence(timeout: 30), app.debugDescription)
         try fill(username, in: app, "QA")
+        #if os(tvOS)
+        let password = element(app, "Password")
+        #else
         let password = app.secureTextFields.firstMatch
+        #endif
         try require(password.waitForExistence(timeout: 10), app.debugDescription)
-        try fill(password, in: app, "StreamyfinFixture2536")
+        try fill(password, in: app, "StreamyfinFixture2536", secure: true)
         try press(app, "Log in")
 
         #if os(iOS)
@@ -35,7 +45,11 @@ final class MixedLibraryTests: XCTestCase {
         try press(app, "Mixed Fixture", containing: true, timeout: 25)
         try require(element(app, "Fixture Movie", containing: true).waitForExistence(timeout: 25), app.debugDescription)
         try require(element(app, "Fixture Series", containing: true).exists, app.debugDescription)
-        let episode = element(app, "S01E01", containing: true)
+        let fixtureEpisode = NSPredicate(
+            format: "label CONTAINS[c] %@ OR label CONTAINS[c] %@ OR label CONTAINS[c] %@",
+            "Fixture Episode", "S1:E1", "S01E01"
+        )
+        let episode = app.descendants(matching: .any).matching(fixtureEpisode).firstMatch
 
         if QAConfiguration.baseline {
             try require(episode.exists, "Upstream baseline did not reproduce the extra episode row. " + app.debugDescription)
@@ -84,24 +98,42 @@ final class MixedLibraryTests: XCTestCase {
     }
 
     @MainActor
-    private func fill(_ field: XCUIElement, in app: XCUIApplication, _ text: String) throws {
+    private func fill(_ field: XCUIElement, in app: XCUIApplication, _ text: String, secure: Bool = false) throws {
         try activate(field, in: app)
         #if os(tvOS)
-        // Some tvOS inputs open the system keyboard in a different text field.
-        let editor = app.textFields.matching(NSPredicate(format: "hasKeyboardFocus == true")).firstMatch
-        if editor.exists {
+        // The focusable app control opens a separate keyboard editor.
+        let fields = secure ? app.secureTextFields : app.textFields
+        let editor = fields.firstMatch
+        if editor.waitForExistence(timeout: 5) {
             editor.typeText(text)
         } else {
-            field.typeText(text)
+            app.typeText(text)
         }
         let done = element(app, "Done")
         if done.exists {
             try activate(done, in: app)
-        } else if app.keyboards.firstMatch.exists {
+        } else {
             XCUIRemote.shared.press(.menu)
         }
         #else
-        field.typeText(text + "\n")
+        _ = app.keyboards.firstMatch.waitForExistence(timeout: 5)
+        field.typeText(text)
+        let entered = field.value as? String ?? ""
+        let matched = secure ? entered.count == text.count : entered == text
+        guard !matched else { return }
+
+        let clear = field.buttons["Clear text"]
+        if clear.exists {
+            clear.tap()
+        } else if !entered.isEmpty {
+            field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: entered.count))
+        }
+        for character in text {
+            field.typeText(String(character))
+        }
+        let corrected = field.value as? String ?? ""
+        try require(secure ? corrected.count == text.count : corrected == text,
+                    "Simulator keyboard did not enter the complete text.")
         #endif
     }
 
