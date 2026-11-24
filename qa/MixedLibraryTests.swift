@@ -25,7 +25,12 @@ final class MixedLibraryTests: XCTestCase {
         #else
         let username = app.textFields.matching(NSPredicate(format: "placeholderValue == %@", "Username")).firstMatch
         #endif
-        try require(username.waitForExistence(timeout: 30), app.debugDescription)
+        let connectionError = app.alerts["Connection failed"].buttons["OK"]
+        if !username.waitForExistence(timeout: 15), connectionError.exists {
+            try activate(connectionError, in: app)
+            try press(app, "Connect")
+        }
+        try require(username.waitForExistence(timeout: 25), app.debugDescription)
         try fill(username, in: app, "QA")
         #if os(tvOS)
         let password = element(app, "Password")
