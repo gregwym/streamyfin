@@ -94,19 +94,26 @@ final class MixedLibraryTests: XCTestCase {
         #endif
         // Open the real library route directly when the simulator's native
         // tab bar does not dispatch the navigation.
-        guard let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
-            throw failure("The simulator test runner has no cache directory.")
+        guard let libraryID = ProcessInfo.processInfo.environment["STREAMYFIN_QA_LIBRARY_ID"] else {
+            throw failure("Missing the Jellyfin fixture library ID.")
         }
-        // The host dispatches the link to the running app. XCUIApplication.open
-        // restarts the app, which can lose the link while auth is rehydrating.
-        try FileManager.default.createDirectory(at: caches, withIntermediateDirectories: true)
-        try Data().write(to: caches.appendingPathComponent("streamyfin-qa-open-library"), options: .atomic)
-        #if os(iOS)
-        let title = app.navigationBars["Mixed Fixture"]
-        #else
+        #if os(tvOS)
         let title = element(app, "Mixed Fixture")
+        let routes = ["\(libraryID)?fromSeeAll=true",
+                      "(auth)/(tabs)/(libraries)/\(libraryID)?fromSeeAll=true"]
+        #else
+        let title = app.navigationBars["Mixed Fixture"]
+        let routes = [libraryID]
         #endif
-        try require(title.waitForExistence(timeout: 30), "The fixture library route did not open. " + app.debugDescription)
+        for route in routes {
+            if let url = URL(string: "streamyfin:///\(route)") {
+                app.open(url)
+                if title.waitForExistence(timeout: 18) {
+                    return
+                }
+            }
+        }
+        throw failure("The fixture library route did not open. " + app.debugDescription)
     }
 
     private func require(_ condition: Bool, _ diagnostic: @autoclosure () -> String) throws {

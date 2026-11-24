@@ -28,9 +28,6 @@ runtime=$(xcrun simctl list runtimes -j | jq -er --arg prefix "com.apple.CoreSim
 device_id=$(xcrun simctl create "Streamyfin QA" "$device_type" "$runtime")
 
 cleanup() {
-  if [[ -n "${link_relay_pid:-}" ]]; then
-    kill "$link_relay_pid" 2>/dev/null || true
-  fi
   if [[ -f "$work_dir/server.pid" ]]; then
     kill "$(cat "$work_dir/server.pid")" 2>/dev/null || true
   fi
@@ -40,6 +37,29 @@ trap cleanup EXIT
 
 echo "Starting the Jellyfin fixture"
 python3 "$harness/fixture.py" "$work_dir" "$evidence" 2>&1 | tee "$evidence/fixture.log"
+python3 - "$test_run" "$work_dir/library-id.txt" <<'PYENV'
+from pathlib import Path
+import plistlib
+import re
+import sys
+
+test_run, library_id_file = map(Path, sys.argv[1:])
+library_id = library_id_file.read_text().strip()
+if not re.fullmatch(r"[a-fA-F0-9]{32}", library_id):
+    raise ValueError(f"Unexpected Jellyfin fixture library ID: {library_id!r}")
+with test_run.open("rb") as file:
+    spec = plistlib.load(file)
+if "TestConfigurations" in spec:
+    targets = [target for configuration in spec["TestConfigurations"] for target in configuration["TestTargets"]]
+else:
+    targets = [target for target in spec.values() if isinstance(target, dict) and "TestBundlePath" in target]
+if not targets:
+    raise ValueError("The xctestrun file does not contain a test target.")
+for target in targets:
+    target.setdefault("EnvironmentVariables", {})["STREAMYFIN_QA_LIBRARY_ID"] = library_id
+with test_run.open("wb") as file:
+    plistlib.dump(spec, file)
+PYENV
 echo "Booting $runtime_family simulator $device_id"
 xcrun simctl boot "$device_id"
 python3 - "$device_id" <<'PYBOOT' 2>&1 | tee "$evidence/boot.log"
@@ -48,30 +68,6 @@ import sys
 
 subprocess.run(["xcrun", "simctl", "bootstatus", sys.argv[1], "-b"], check=True, timeout=300)
 PYBOOT
-
-runner_info=$(find "$(dirname "$test_run")" -path '*/MixedLibraryUITests-Runner.app/Info.plist' -print -quit)
-runner_bundle=$(plutil -extract CFBundleIdentifier raw "$runner_info")
-library_id=$(cat "$work_dir/library-id.txt")
-[[ "$library_id" =~ ^[a-fA-F0-9]{32}$ ]]
-library_url="streamyfin:///$library_id"
-if [[ "$EXPO_TV" == 1 ]]; then
-  # The app uses this route parameter for its TV Home "See All" link.
-  library_url+="?fromSeeAll=true"
-fi
-relay_library_link() {
-  local data_path
-  while true; do
-    if data_path=$(xcrun simctl get_app_container "$device_id" "$runner_bundle" data 2>/dev/null) &&
-      [[ -f "$data_path/Library/Caches/streamyfin-qa-open-library" ]]; then
-      echo "Opening the fixture library in the running simulator app."
-      xcrun simctl openurl "$device_id" "$library_url"
-      return
-    fi
-    sleep 1
-  done
-}
-relay_library_link > "$evidence/deep-link.log" 2>&1 &
-link_relay_pid=$!
 
 status=0
 xcodebuild test-without-building -xctestrun "$test_run" -destination "id=$device_id" \
