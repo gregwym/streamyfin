@@ -67,8 +67,10 @@ final class MixedLibraryTests: XCTestCase {
 
     @MainActor
     private func element(_ app: XCUIApplication, _ title: String, containing: Bool = false) -> XCUIElement {
-        let format = containing ? "identifier CONTAINS[c] %@ OR label CONTAINS[c] %@" : "identifier ==[c] %@ OR label ==[c] %@"
-        let predicate = NSPredicate(format: format, title, title)
+        let predicate = containing
+            ? NSPredicate(format: "identifier CONTAINS[c] %@ OR label CONTAINS[c] %@", title, title)
+            : NSPredicate(format: "identifier ==[c] %@ OR label ==[c] %@ OR label ENDSWITH[c] %@",
+                          title, title, ", " + title)
         let buttons = app.buttons.matching(predicate)
         if buttons.firstMatch.exists { return buttons.firstMatch }
         return app.descendants(matching: .any).matching(predicate).firstMatch
