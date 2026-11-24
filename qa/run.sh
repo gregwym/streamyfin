@@ -22,8 +22,10 @@ else
   runtime_family=iOS
   device_type=com.apple.CoreSimulator.SimDeviceType.iPhone-17
 fi
-runtime=$(xcrun simctl list runtimes -j | jq -er --arg prefix "com.apple.CoreSimulator.SimRuntime.$runtime_family-" '
-  [.runtimes[] | select(.isAvailable and (.identifier | startswith($prefix)))] |
+runtime=$(xcrun simctl list runtimes -j | jq -er \
+  --arg prefix "com.apple.CoreSimulator.SimRuntime.$runtime_family-" --arg version "${QA_RUNTIME_VERSION:-}" '
+  [.runtimes[] | select(.isAvailable and (.identifier | startswith($prefix))
+    and ($version == "" or .identifier == ($prefix + ($version | split(".") | join("-")))))] |
   sort_by(.version | split(".") | map(tonumber)) | last | .identifier')
 device_id=$(xcrun simctl create "Streamyfin QA" "$device_type" "$runtime")
 

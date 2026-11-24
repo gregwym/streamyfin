@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   simulator:
-    name: ${{ matrix.name }}
+    name: ${{ matrix.name }} (tvOS ${{ matrix.runtime }})
     runs-on: macos-26
     timeout-minutes: 50
     strategy:
@@ -20,10 +20,17 @@ jobs:
             source: gregwym/streamyfin
             revision: 93d66db1359af63b1a8c026668368388cada2fbc
             tv: '1'
+            runtime: '26.4'
+          - name: tvos-after
+            source: gregwym/streamyfin
+            revision: 93d66db1359af63b1a8c026668368388cada2fbc
+            tv: '1'
+            runtime: '26.2'
     env:
       QA_VARIANT: ${{ matrix.name }}
       QA_REVISION: ${{ matrix.revision }}
       EXPO_TV: ${{ matrix.tv }}
+      QA_RUNTIME_VERSION: ${{ matrix.runtime }}
       EXPO_NO_TELEMETRY: '1'
       SENTRY_DISABLE_AUTO_UPLOAD: 'true'
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
@@ -70,7 +77,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ${{ matrix.name }}
+          name: ${{ matrix.name }} (tvOS ${{ matrix.runtime }})
           path: ${{ runner.temp }}/streamyfin-qa-evidence/
           if-no-files-found: warn
           retention-days: 7
